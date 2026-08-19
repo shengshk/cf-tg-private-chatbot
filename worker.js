@@ -348,10 +348,21 @@ async function getAllKeys(env, prefix) {
 
 // 群里从命令菜单发出的指令会带 @botname，例如 /info@shengshk_bot
 function normalizeBotCommand(text) {
-    const t = (text || "").trim();
-    const m = t.match(/^\/([A-Za-z0-9_]+)(?:@[\w]+)?(?:\s+(.*))?$/);
+    const t = (text || "").trim().replace(/[\u200B-\u200D\uFEFF]/g, "");
+    const m = t.match(/^\/([A-Za-z0-9_]+)(?:@[A-Za-z0-9_]+)?(?:\s+(.*))?$/);
     if (!m) return t;
     return m[2] ? `/${m[1]} ${m[2]}` : `/${m[1]}`;
+}
+
+function commandFromMessage(msg) {
+    const raw = (msg.text || "").replace(/[\u200B-\u200D\uFEFF]/g, "");
+    const entity = (msg.entities || []).find((e) => e.type === "bot_command");
+    if (entity && msg.text) {
+        const token = msg.text.substr(entity.offset, entity.length);
+        const rest = msg.text.slice(entity.offset + entity.length);
+        return normalizeBotCommand(`${token}${rest}`);
+    }
+    return normalizeBotCommand(raw);
 }
 
 // Fisher-Yates 洗牌算法
@@ -482,7 +493,7 @@ async function handlePrivateMessage(msg, env, ctx) {
       return;
   }
 
-  const cmd = normalizeBotCommand(msg.text);
+  const cmd = commandFromMessage(msg);
 
   // 拦截普通用户发送的指令
   if (msg.text && msg.text.startsWith("/") && cmd !== "/start") {
@@ -713,7 +724,8 @@ async function forwardToTopic(msg, userId, key, env, ctx) {
 
 async function handleAdminReply(msg, env, ctx) {
   const threadId = msg.message_thread_id;
-  const text = normalizeBotCommand(msg.text);
+  const rawText = (msg.text || "").trim();
+  const text = commandFromMessage(msg);
   const senderId = msg.from?.id;
 
   // 仅允许管理员在群内操作与回信，防止任意群成员向用户私聊注入消息
@@ -806,6 +818,12 @@ async function handleAdminReply(msg, env, ctx) {
 
       const info = `👤 **用户信息**\nUID: \`${userId}\`\nTopic ID: \`${threadId}\`\n话题标题: ${userRec?.title || "未知"}\n验证状态: ${verifyStatus ? (verifyStatus === 'trusted' ? '🌟 永久信任' : '✅ 已验证') : '❌ 未验证'}\n封禁状态: ${banStatus ? '🚫 已封禁' : '✅ 正常'}\nLink: [点击私聊](tg://user?id=${userId})`;
       await tgCall(env, "sendMessage", { chat_id: env.SUPERGROUP_ID, message_thread_id: threadId, text: info, parse_mode: "Markdown" });
+      return;
+  }
+
+  // 斜杠开头一律不当普通消息转给用户（含 /info@botname）
+  if (rawText.startsWith("/") || text.startsWith("/")) {
+      Logger.warn('unknown_admin_command', { text, rawText, threadId, userId });
       return;
   }
 
