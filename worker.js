@@ -346,6 +346,14 @@ async function getAllKeys(env, prefix) {
     return allKeys;
 }
 
+// 群里从命令菜单发出的指令会带 @botname，例如 /info@shengshk_bot
+function normalizeBotCommand(text) {
+    const t = (text || "").trim();
+    const m = t.match(/^\/([A-Za-z0-9_]+)(?:@[\w]+)?(?:\s+(.*))?$/);
+    if (!m) return t;
+    return m[2] ? `/${m[1]} ${m[2]}` : `/${m[1]}`;
+}
+
 // Fisher-Yates 洗牌算法
 function shuffleArray(arr) {
     const array = [...arr];
@@ -474,8 +482,10 @@ async function handlePrivateMessage(msg, env, ctx) {
       return;
   }
 
+  const cmd = normalizeBotCommand(msg.text);
+
   // 拦截普通用户发送的指令
-  if (msg.text && msg.text.startsWith("/") && msg.text.trim() !== "/start") {
+  if (msg.text && msg.text.startsWith("/") && cmd !== "/start") {
       return;
   }
 
@@ -485,7 +495,7 @@ async function handlePrivateMessage(msg, env, ctx) {
   const verified = await env.TOPIC_MAP.get(`verified:${userId}`);
 
   if (!verified) {
-    const isStart = msg.text && msg.text.trim() === "/start";
+    const isStart = cmd === "/start";
     const pendingMsgId = isStart ? null : msg.message_id;
     await sendVerificationChallenge(userId, env, pendingMsgId);
     return;
@@ -703,7 +713,7 @@ async function forwardToTopic(msg, userId, key, env, ctx) {
 
 async function handleAdminReply(msg, env, ctx) {
   const threadId = msg.message_thread_id;
-  const text = (msg.text || "").trim();
+  const text = normalizeBotCommand(msg.text);
   const senderId = msg.from?.id;
 
   // 仅允许管理员在群内操作与回信，防止任意群成员向用户私聊注入消息
