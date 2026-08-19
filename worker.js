@@ -346,23 +346,18 @@ async function getAllKeys(env, prefix) {
     return allKeys;
 }
 
-// 群里从命令菜单发出的指令会带 @botname，例如 /info@shengshk_bot
-function normalizeBotCommand(text) {
-    const t = (text || "").trim().replace(/[\u200B-\u200D\uFEFF]/g, "");
-    const m = t.match(/^\/([A-Za-z0-9_]+)(?:@[A-Za-z0-9_]+)?(?:\s+(.*))?$/);
-    if (!m) return t;
-    return m[2] ? `/${m[1]} ${m[2]}` : `/${m[1]}`;
+// 去掉 Telegram 在 @ 周围插入的双向/零宽字符
+function stripFormatChars(s) {
+    return (s || "").replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, "").trim();
 }
 
-function commandFromMessage(msg) {
-    const raw = (msg.text || "").replace(/[\u200B-\u200D\uFEFF]/g, "");
-    const entity = (msg.entities || []).find((e) => e.type === "bot_command");
-    if (entity && msg.text) {
-        const token = msg.text.substr(entity.offset, entity.length);
-        const rest = msg.text.slice(entity.offset + entity.length);
-        return normalizeBotCommand(`${token}${rest}`);
-    }
-    return normalizeBotCommand(raw);
+// 群菜单发出的是 /info@shengshk_bot，只取 info
+function parseSlashCommand(msg) {
+    const src = stripFormatChars(msg.text || msg.caption || "");
+    if (!src.startsWith("/")) return null;
+    const first = src.slice(1).split(/\s+/, 1)[0];
+    const name = first.split("@")[0].toLowerCase();
+    return name || null;
 }
 
 // Fisher-Yates 洗牌算法
@@ -493,10 +488,10 @@ async function handlePrivateMessage(msg, env, ctx) {
       return;
   }
 
-  const cmd = commandFromMessage(msg);
+  const cmd = parseSlashCommand(msg);
 
   // 拦截普通用户发送的指令
-  if (msg.text && msg.text.startsWith("/") && cmd !== "/start") {
+  if (cmd && cmd !== "start") {
       return;
   }
 
@@ -506,7 +501,7 @@ async function handlePrivateMessage(msg, env, ctx) {
   const verified = await env.TOPIC_MAP.get(`verified:${userId}`);
 
   if (!verified) {
-    const isStart = cmd === "/start";
+    const isStart = cmd === "start";
     const pendingMsgId = isStart ? null : msg.message_id;
     await sendVerificationChallenge(userId, env, pendingMsgId);
     return;
@@ -724,8 +719,7 @@ async function forwardToTopic(msg, userId, key, env, ctx) {
 
 async function handleAdminReply(msg, env, ctx) {
   const threadId = msg.message_thread_id;
-  const rawText = (msg.text || "").trim();
-  const text = commandFromMessage(msg);
+  const cmd = parseSlashCommand(msg);
   const senderId = msg.from?.id;
 
   // 仅允许管理员在群内操作与回信，防止任意群成员向用户私聊注入消息
@@ -733,8 +727,10 @@ async function handleAdminReply(msg, env, ctx) {
       return;
   }
 
+  Logger.info('admin_reply', { cmd, threadId, text: stripFormatChars(msg.text || "") });
+
   // 【修复】允许在任何话题执行 /cleanup 命令
-  if (text === "/cleanup") {
+  if (cmd === "cleanup") {
       // /cleanup 可能处理较久，使用 waitUntil 防止 webhook 请求超时导致“卡住”
       ctx.waitUntil(handleCleanupCommand(threadId, env));
       return;
@@ -761,7 +757,7 @@ async function handleAdminReply(msg, env, ctx) {
 
   // --- 指令区域 ---
 
-  if (text === "/close") {
+  if (cmd === "close") {
       const key = `user:${userId}`;
       let rec = await safeGetJSON(env, key, null);
       if (rec) {
@@ -773,7 +769,7 @@ async function handleAdminReply(msg, env, ctx) {
       return;
   }
 
-  if (text === "/open") {
+  if (cmd === "open") {
       const key = `user:${userId}`;
       let rec = await safeGetJSON(env, key, null);
       if (rec) {
@@ -785,32 +781,32 @@ async function handleAdminReply(msg, env, ctx) {
       return;
   }
 
-  if (text === "/reset") {
+  if (cmd === "reset") {
       await env.TOPIC_MAP.delete(`verified:${userId}`);
       await tgCall(env, "sendMessage", { chat_id: env.SUPERGROUP_ID, message_thread_id: threadId, text: "🔄 **验证重置**", parse_mode: "Markdown" });
       return;
   }
 
-  if (text === "/trust") {
+  if (cmd === "trust") {
       await env.TOPIC_MAP.put(`verified:${userId}`, "trusted");
       await env.TOPIC_MAP.delete(`needs_verify:${userId}`);
       await tgCall(env, "sendMessage", { chat_id: env.SUPERGROUP_ID, message_thread_id: threadId, text: "🌟 **已设置永久信任**", parse_mode: "Markdown" });
       return;
   }
 
-  if (text === "/ban") {
+  if (cmd === "ban") {
       await env.TOPIC_MAP.put(`banned:${userId}`, "1");
       await tgCall(env, "sendMessage", { chat_id: env.SUPERGROUP_ID, message_thread_id: threadId, text: "🚫 **用户已封禁**", parse_mode: "Markdown" });
       return;
   }
 
-  if (text === "/unban") {
+  if (cmd === "unban") {
       await env.TOPIC_MAP.delete(`banned:${userId}`);
       await tgCall(env, "sendMessage", { chat_id: env.SUPERGROUP_ID, message_thread_id: threadId, text: "✅ **用户已解封**", parse_mode: "Markdown" });
       return;
   }
 
-  if (text === "/info") {
+  if (cmd === "info") {
       const userKey = `user:${userId}`;
       const userRec = await safeGetJSON(env, userKey, null);
       const verifyStatus = await env.TOPIC_MAP.get(`verified:${userId}`);
@@ -822,8 +818,8 @@ async function handleAdminReply(msg, env, ctx) {
   }
 
   // 斜杠开头一律不当普通消息转给用户（含 /info@botname）
-  if (rawText.startsWith("/") || text.startsWith("/")) {
-      Logger.warn('unknown_admin_command', { text, rawText, threadId, userId });
+  if (cmd) {
+      Logger.warn('unknown_admin_command', { cmd, threadId, userId });
       return;
   }
 
