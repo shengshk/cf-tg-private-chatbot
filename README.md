@@ -1,10 +1,32 @@
-# 🤖 Telegram Private Chatbot (v5.3) 
+# cf-tg-private-chatbot
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/jikssha/telegram_private_chatbot)
-![GitHub stars](https://img.shields.io/github/stars/jikssha/telegram_private_chatbot?style=social)
-![License](https://img.shields.io/badge/License-MIT-blue.svg)
-[![Telegram](https://img.shields.io/badge/Telegram-DM-blue?style=social&logo=telegram)](https://t.me/vaghr_wegram_bot)
-[🇺🇸 English](README_EN.md) | [🇨🇳 简体中文](README.md)
+<p align="center">
+  Cloudflare Worker · Telegram 双向私聊机器人（人机验证 + Forum Topics）<br/>
+  Based on / 基于 <a href="https://github.com/jikssha/telegram_private_chatbot">jikssha/telegram_private_chatbot</a>
+</p>
+
+<p align="center">
+  <a href="README_EN.md">English</a> · <a href="#中文">中文</a>
+  · <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT" /></a>
+</p>
+
+## Directory
+
+```text
+<project>/
+├── README.md                  # this file on GitHub (from README.PROJECT.md)
+├── README_EN.md
+├── LICENSE
+├── .env.example
+├── wrangler.jsonc
+├── wrangler.example.jsonc
+├── worker.js
+└── status.html
+```
+
+---
+
+# 中文
 
 **Telegram Private Chatbot** 是一个基于 **Cloudflare Workers** 的高性能 Telegram 双向私聊机器人。它专为解决 Telegram 上的垃圾广告骚扰而生，拥有 0 延迟的本地人机验证系统、强大的管理员指令集以及无缝的消息转发体验。
 
@@ -39,8 +61,8 @@ Fork用户可直接点击sync 更新同步，自动更新
 * [🛠️ 管理员指令](#-管理员指令)
 * [🚀 部署教程](#-部署教程)
     * [方法一：GitHub 一键连接 (推荐)](#方法一github-一键连接部署-推荐-)
-    * [方法二：手动复制部署](#方法二手动复制部署-简单直接)
-    * [最后一步：激活 Webhook](#最后一步激活-webhook-至关重要)
+    * [方法二：命令行部署](#方法二命令行部署)
+    * [最后一步：打开状态页](#最后一步打开状态页自动激活-webhook)
 * [❓ 常见问题 (FAQ)](#-常见问题-faq)
 * [📈 Star History](#-star-history)
 
@@ -111,50 +133,39 @@ KV 绑定写在仓库根目录的 **`wrangler.jsonc`**（与 `wrangler.toml` 内
     * `SUPERGROUP_ID`: 群组 ID（`-100` 开头）。
     KV 不必再在 Dashboard 里手绑；已写在 `wrangler.jsonc` 里。
 
-### 方法二：手动复制部署 (简单直接)
+### 方法二：命令行部署
 
-如果您不想关联 GitHub，可以直接复制代码。
+需要把 `worker.js` 和 `status.html` 一起打包，不要只在 Dashboard 里粘贴 `worker.js`。
 
-1.  登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)。
-2.  进入 **Workers & Pages** -> **Create Application** -> **Create Worker** ，选择从`hello world`开始。
-3.  命名你的 Worker，点击 **Deploy**。
-4.  点击 **Edit code**，将本项目 `worker.js` 的所有代码复制粘贴进去，覆盖原代码。
-5.  点击右上角 **Deploy** 保存。
-6.  **配置 KV 与变量**：
-    * 去 **Settings** -> **Variables**。
-    * 添加 KV 绑定：Variable name 填 `TOPIC_MAP`，并绑定一个 KV 数据库。
-    * 添加环境变量：`BOT_TOKEN` 和 `SUPERGROUP_ID`。
-    * 点击 **Save and Deploy**。
+```bash
+# 填 wrangler.jsonc 的 KV Namespace ID，Dashboard 里配置 BOT_TOKEN / SUPERGROUP_ID
+npx wrangler deploy --keep-vars
+```
+
+`keep_vars = true`，部署不会清掉面板里的明文变量。Token 建议用机密。
 
 ---
 
-### 最后一步：激活 Webhook (至关重要)
+### 最后一步：打开状态页（自动激活 Webhook）
 
-无论使用哪种部署方式，最后都需要手动告诉 Telegram 你的 Worker 地址。请在浏览器中**严格按顺序**访问以下 URL：
+部署完成后打开 Worker 根地址（例如 `https://<worker-name>.<account>.workers.dev/`）。
 
- **设置新 Webhook**：
-    ```
-   (https://api.telegram.org/bot)<YOUR_TOKEN>/setWebhook?url=<YOUR_WORKER_URL>
-    ```
-    *将 `<YOUR_TOKEN>` 替换为机器人 Token，`<YOUR_WORKER_URL>` 替换为 Worker 的完整域名或者你绑定的自定义的域名 (如 `https://xxx.workers.dev`)。*
-    
- *举例：https://api.telegram.org/bot1234:HUSH2GW/setWebhook?url=https://1234.workers.dev* `<YOUR_TOKEN>前面的bot别删了`
+打开即登记 Telegram webhook 和命令菜单，**不必**再手动访问 `api.telegram.org/bot.../setWebhook`。
 
-如果返回 `{"ok":true, "result":true, "description":"Webhook was set"}`，即表示部署成功！
+页面为绿/黄/红：已绑定 / 可切换域名 / 未绑定。点状态文字可重新初始化。
 
 ---
 
 ## ❓ 常见问题 (FAQ)
 
 **Q1: 为什么点击验证按钮没有反应？**
-A: 请检查 Webhook 是否正确设置。必须确保 Telegram 允许发送 `callback_query` 事件。请务必执行上述“最后一步”中的重置操作。
+A: 打开 Worker 根地址状态页，点状态文字重新初始化。Webhook 必须允许 `callback_query`（状态页 `/init` 已带上）。
 
 **Q2: 为什么机器人无法在群里创建话题？**
 A: 请确保：1. 群组 ID 正确（-100开头）；2. 群组已开启 Topics 功能；3. 机器人是群管理员且拥有 "Manage Topics" 权限。
 
 **Q3: 为什么人机验证能通过收不到转发的消息？**
-A: 请仔细检查所有变量名称和id是否准确，删除webhook再重新激活。
- `(https://api.telegram.org/bot)<YOUR_TOKEN>/deleteWebhook?drop_pending_updates=true` 
+A: 请仔细检查所有变量名称和 id 是否准确。然后打开 Worker 根地址状态页，点状态文字重新绑定 webhook。 
   
   如果依然无法正常转发消息，尝试完成所有步骤后，最后再添加bot的管理员权限。
   
@@ -172,7 +183,11 @@ A: Git 部署以 `wrangler.jsonc` 为准。把 KV Namespace ID 写进 `kv_namesp
 
 ## 📈 Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=jikssha/telegram_private_chatbot&type=date&legend=top-left)](https://www.star-history.com/#jikssha/telegram_private_chatbot&type=date&legend=top-left)
+[![Star History Chart](https://api.star-history.com/svg?repos=shengshk/cf-tg-private-chatbot&type=date&legend=top-left)](https://www.star-history.com/#shengshk/cf-tg-private-chatbot&type=date&legend=top-left)
 
 ---
 **如果这个项目对你有帮助，请给个 Star ⭐️ 吧！**
+
+## License
+
+[MIT](LICENSE)

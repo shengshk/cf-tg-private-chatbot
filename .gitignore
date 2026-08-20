@@ -1,0 +1,11 @@
+node_modules/
+.wrangler/
+.dev.vars
+*.log
+.DS_Store
+*.code-workspace
+
+# .env is tracked for Gitea only. Do not export it to GitHub (.files2github).
+
+# 00-readme
+.machine

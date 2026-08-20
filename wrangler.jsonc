@@ -17,5 +17,12 @@
 			"persist": true,
 			"invocation_logs": true
 		}
-	}
+	},
+	"rules": [
+		{
+			"type": "Text",
+			"globs": ["**/*.html"],
+			"fallthrough": true
+		}
+	]
 }

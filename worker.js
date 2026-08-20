@@ -1,3 +1,5 @@
+import STATUS_HTML from "./status.html";
+
 // Cloudflare Worker：Telegram 双向机器人 v5.3
 
 // --- 配置常量 ---
@@ -384,8 +386,132 @@ async function checkRateLimit(userId, env, action = 'message', limit = 20, windo
     return { allowed: true, remaining: limit - count - 1 };
 }
 
+const GROUP_ADMIN_COMMANDS = [
+  { command: "info", description: "查看用户信息" },
+  { command: "ban", description: "封禁" },
+  { command: "unban", description: "解封" },
+  { command: "trust", description: "永久信任" },
+  { command: "reset", description: "重置验证" },
+  { command: "close", description: "关闭对话" },
+  { command: "open", description: "重新开启" },
+  { command: "cleanup", description: "清理失效话题" }
+];
+
+const PRIVATE_COMMANDS = [
+  { command: "start", description: "开始" }
+];
+
+async function setupBotHooks(env, publicOrigin) {
+  const origin = String(publicOrigin || "").replace(/\/$/, "");
+  const webhookUrl = `${origin}/`;
+  const webhook = await tgCall(env, "setWebhook", {
+    url: webhookUrl,
+    allowed_updates: ["message", "callback_query"]
+  });
+  const clearDefault = await tgCall(env, "deleteMyCommands", {
+    scope: { type: "default" }
+  });
+  const groupCommands = await tgCall(env, "setMyCommands", {
+    commands: GROUP_ADMIN_COMMANDS,
+    scope: { type: "all_chat_administrators" }
+  });
+  const privateCommands = await tgCall(env, "setMyCommands", {
+    commands: PRIVATE_COMMANDS,
+    scope: { type: "all_private_chats" }
+  });
+  const webhookInfo = await tgCall(env, "getWebhookInfo", {});
+  return {
+    host: origin.replace(/^https?:\/\//i, "").split("/")[0],
+    webhookUrl,
+    webhook,
+    clearDefault,
+    groupCommands,
+    privateCommands,
+    webhookInfo
+  };
+}
+
+function webhookHostFromUrl(webhookUrl) {
+  try {
+    return new URL(webhookUrl).host.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+async function handlePublicGet(request, env, ctx) {
+  const url = new URL(request.url);
+  const pathname = url.pathname === "" ? "/" : url.pathname;
+
+  if (pathname === "/api/status") {
+    if (!env.BOT_TOKEN) {
+      return new Response(JSON.stringify({
+        host: null,
+        error: "BOT_TOKEN not set",
+        kvBound: !!env.TOPIC_MAP
+      }), {
+        status: 200,
+        headers: { "content-type": "application/json; charset=utf-8" }
+      });
+    }
+    try {
+      const info = await tgCall(env, "getWebhookInfo", {});
+      const webhookUrl = info?.result?.url || "";
+      return new Response(JSON.stringify({
+        host: webhookHostFromUrl(webhookUrl) || null,
+        webhookUrl,
+        lastError: info?.result?.last_error_message || null,
+        kvBound: !!env.TOPIC_MAP
+      }), {
+        headers: { "content-type": "application/json; charset=utf-8" }
+      });
+    } catch (e) {
+      return new Response(JSON.stringify({
+        host: null,
+        error: e?.message || String(e),
+        kvBound: !!env.TOPIC_MAP
+      }), {
+        headers: { "content-type": "application/json; charset=utf-8" }
+      });
+    }
+  }
+
+  if (pathname === "/init") {
+    if (!env.BOT_TOKEN) {
+      return new Response(JSON.stringify({ error: "BOT_TOKEN not set" }), {
+        status: 500,
+        headers: { "content-type": "application/json; charset=utf-8" }
+      });
+    }
+    const result = await setupBotHooks(env, url.origin);
+    return new Response(JSON.stringify(result, null, 2), {
+      headers: { "content-type": "application/json; charset=utf-8" }
+    });
+  }
+
+  if (pathname === "/" || pathname === "") {
+    if (env.BOT_TOKEN) {
+      ctx.waitUntil(setupBotHooks(env, url.origin).catch((e) => {
+        console.error("setupBotHooks failed", e);
+      }));
+    }
+    return new Response(STATUS_HTML, {
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store"
+      }
+    });
+  }
+
+  return new Response("Not found", { status: 404 });
+}
+
 export default {
   async fetch(request, env, ctx) {
+    if (request.method === "GET") {
+      return handlePublicGet(request, env, ctx);
+    }
+
     // 环境自检
     if (!env.TOPIC_MAP) return new Response("Error: KV 'TOPIC_MAP' not bound.");
     if (!env.BOT_TOKEN) return new Response("Error: BOT_TOKEN not set.");

@@ -20,7 +20,7 @@ Deploy a free, enterprise-grade customer service system utilizing Cloudflare's p
 * [🚀 Deployment Tutorial](#-deployment-tutorial)
     * [Method 1: One-Click Deploy via GitHub (Recommended)](#method-1-one-click-deploy-via-github-recommended-)
     * [Method 2: Manual Deployment](#method-2-manual-deployment-simple--direct)
-    * [Final Step: Activate Webhook](#final-step-activate-webhook-crucial)
+    * [Final Step: Open the status page](#final-step-open-the-status-page-auto-bind-webhook)
 * [❓ FAQ](#-faq)
 * [📈 Star History](#-star-history)
 
@@ -109,24 +109,20 @@ If you don't want to link GitHub, you can copy the code directly.
 
 ---
 
-### Final Step: Activate Webhook (Crucial)
+### Final Step: Open the status page (auto-bind webhook)
 
-Regardless of the deployment method, you must manually tell Telegram your Worker address. Visit the following URL in your browser **strictly in order**:
+After deploy, open the Worker root URL (for example `https://<worker-name>.<account>.workers.dev/`).
 
- **Set New Webhook**:
-    ```
-    [https://api.telegram.org/bot](https://api.telegram.org/bot)<YOUR_TOKEN>/setWebhook?url=<YOUR_WORKER_URL>
-    ```
-    *Replace `<YOUR_TOKEN>` with your bot token, and `<YOUR_WORKER_URL>` with your Worker's full domain or custom domain (e.g., `https://xxx.workers.dev`).*
+That page registers the Telegram webhook and command menu. You do **not** need to visit `api.telegram.org/bot.../setWebhook` by hand.
 
-If it returns `{"ok":true, "result":true, "description":"Webhook was set"}`, the deployment is successful!
+The orb is green / yellow / red: bound / switchable host / unbound. Tap the status text to re-init.
 
 ---
 
 ## ❓ FAQ
 
 **Q: Why does clicking the verification button do nothing?**
-A: Please check if the Webhook is set correctly. You must ensure Telegram is allowed to send `callback_query` events. Please perform the reset operation in the "Final Step" above.
+A: Open the Worker root status page and tap the status text to re-init. The webhook must allow `callback_query` (the status page `/init` already sets this).
 
 **Q: Why can't the bot create topics in the group?**
 A: Please ensure: 1. Group ID is correct (starts with -100); 2. Topics are enabled in the group; 3. The bot is an administrator and has "Manage Topics" permission.
