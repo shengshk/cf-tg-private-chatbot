@@ -90,29 +90,26 @@ v4.0 版本移除了所有不稳定的外部 API 依赖，专注于**极致的�
      ``获取 SUPERGROUP_ID 小技巧：
 在 Telegram 桌面端右键群内任意消息，复制消息链接；链接里会有一段 -100xxxxxxxxxx 或 xxxxxxxxxx；若只看到纯数字 xxxxxxxxxx，在前面加上 -100，就是完整的 SUPERGROUP_ID（私密频道/群组同理）。``
 
+KV 绑定写在仓库根目录的 **`wrangler.jsonc`**（与 `wrangler.toml` 内容相同）。Git 部署认这份文件；绑定名必须是 **`TOPIC_MAP`**。换账号部署时复制 `wrangler.example.jsonc`，把 `id` 改成新账号的 KV Namespace ID。`BOT_TOKEN` / `SUPERGROUP_ID` 放 Dashboard 机密，靠 `keep_vars` 部署时不清掉。
+
 ### 方法一：GitHub 一键连接部署 (推荐 ★)
 
 这是最简单的自动化部署方式，当您更新 GitHub 仓库时，Cloudflare 会自动重新部署您的 Worker。
 
 1.  **Fork 本仓库** 到您的 GitHub 账户。
-2.  登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)。
-3.  导航到 **Workers & Pages** -> **Create Application**。
-4.  点击 **Connect to Git** 标签页。
-5.  授权 Cloudflare 访问您的 GitHub，并选择您刚才 Fork 的 `telegram_private_chatbot` 仓库。
-6.  **配置部署设置**：
-    * 项目名称：`telegram-private-chatbot` (或任意名称)。
-    * 生产分支：通常是 `main` 或 `master`。
+2.  在 Cloudflare 建一个 KV 命名空间，把 Namespace ID 填进 `wrangler.jsonc` 的 `kv_namespaces`（绑定名 `TOPIC_MAP`）。
+3.  登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)。
+4.  导航到 **Workers & Pages** -> **Create Application**。
+5.  点击 **Connect to Git** 标签页。
+6.  授权 Cloudflare 访问您的 GitHub，并选择本仓库。
+7.  **配置部署设置**：
+    * 项目名称：`tg-private-chatbot`（与 `wrangler.jsonc` 的 `name` 一致）。
+    * 生产分支：通常是 `main`。
     * 其余保持默认，点击 **Save and Deploy**。
-7.  **⚠️ 关键步骤：绑定数据库与变量**
-    * 部署完成后，进入该 Worker 的 **Settings** -> **Variables** 页面。
-    * **绑定 KV 数据库** (必须)：
-        * 在 Cloudflare 左侧菜单 **KV** 中创建一个新的 Namespace（例如叫 `TOPIC_MAP`）。
-        * 回到 Worker 的 Variables 页面，向下滚动到 **KV Namespace Bindings**。
-        * 点击 **Add binding**，变量名填写 `TOPIC_MAP` (必须全大写)，Namespace 选择刚才创建的那个。
-    * **添加环境变量**：
-        * `BOT_TOKEN`: 你的机器人 Token。
-        * `SUPERGROUP_ID`: 你的群组 ID (例如 -100123...)。
-8.  **最后一步**：配置完成后，点击页面顶部的 **Deployments** 标签，找到最新的部署记录，点击右侧的 **Retry deployment** (重新部署)，让变量生效。
+8.  在 Worker **设置 → 变量和机密** 中添加：
+    * `BOT_TOKEN`: 机器人 Token（建议用机密）。
+    * `SUPERGROUP_ID`: 群组 ID（`-100` 开头）。
+    KV 不必再在 Dashboard 里手绑；已写在 `wrangler.jsonc` 里。
 
 ### 方法二：手动复制部署 (简单直接)
 
@@ -161,9 +158,9 @@ A: 请仔细检查所有变量名称和id是否准确，删除webhook再重新�
   
   如果依然无法正常转发消息，尝试完成所有步骤后，最后再添加bot的管理员权限。
   
-**Q4: 为什么webhook设置失败？**
-A: 如果你设置了自定义域名不成功，Webhook 改回 workers.dev 域名再尝试。这种情况是你域名解析失败或者网络环境阻断造成的
- 
+**Q5: 为什么重新部署后 Worker 变成 `Error: KV 'TOPIC_MAP' not bound`？**
+A: Git 部署以 `wrangler.jsonc` 为准。把 KV Namespace ID 写进 `kv_namespaces`（绑定名必须是 `TOPIC_MAP`），不要只在 Dashboard 里手绑。
+
 ---
 
 ## 🔒 安全说明

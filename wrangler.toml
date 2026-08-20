@@ -1,6 +1,18 @@
-name = "telegram_private_chatbot"
+name = "tg-private-chatbot"
 main = "worker.js"
 compatibility_date = "2024-11-30"
+workers_dev = true
+# 保留 Dashboard 里配置的明文变量，避免每次 deploy 清空
+keep_vars = true
 
-# 注意：KV 命名空间 ID 每个用户都不一样，
-# 所以不能写死在这里。用户需要在 Cloudflare 后台手动绑定。
+[[kv_namespaces]]
+binding = "TOPIC_MAP"
+id = "29fe02841b2d40c9ae3d7abe6704b10b"
+
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+persist = true
+invocation_logs = true

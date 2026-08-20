@@ -1,0 +1,21 @@
+{
+	"name": "tg-private-chatbot",
+	"main": "worker.js",
+	"compatibility_date": "2024-11-30",
+	"workers_dev": true,
+	"keep_vars": true,
+	"kv_namespaces": [
+		{
+			"binding": "TOPIC_MAP",
+			"id": "29fe02841b2d40c9ae3d7abe6704b10b"
+		}
+	],
+	"observability": {
+		"enabled": true,
+		"logs": {
+			"enabled": true,
+			"persist": true,
+			"invocation_logs": true
+		}
+	}
+}
